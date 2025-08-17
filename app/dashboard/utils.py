@@ -27,7 +27,7 @@ def api_consulta():
         contratos_2024_secopII_DF['descripcion_del_proceso'] = contratos_2024_secopII_DF['descripcion_del_proceso'].str.replace('\n', ' ')
 
         # Eliminar registros duplicados en 'proceso_de_compra'
-        contratos_2024_secopII_DF = contratos_2024_secopII_DF.drop_duplicates(subset=['proceso_de_compra'], keep='last')
+        # contratos_2024_secopII_DF = contratos_2024_secopII_DF.drop_duplicates(subset=['proceso_de_compra'], keep='last')
 
         # Convertir el DataFrame a JSON y retornar con un estado de éxito
         return {"status": "success", "data": contratos_2024_secopII_DF.to_json(orient="records", force_ascii=False)}

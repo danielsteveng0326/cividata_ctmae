@@ -21,13 +21,14 @@ ALLOWED_HOSTS = [
     '127.0.0.1',
     '.railway.app',
     '.up.railway.app',
-    'edenorte.cividata.co',  # Tu dominio personalizado
+    'ctmae.cividata.co',  # Tu dominio personalizado
     '.cividata.co',         # Wildcard para subdominios
 ]
 
 # CSRF para producción
 CSRF_TRUSTED_ORIGINS = [
-    'https://edenorte.cividata.co',
+    'https://www.ctmae.cividata.co',
+    'https://ctmae.cividata.co',
     'https://*.railway.app',
     'https://*.up.railway.app',
 ]

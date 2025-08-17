@@ -23,7 +23,7 @@ from django.contrib.auth.decorators import login_required
 #municipio de yarumal = 704278142
 #concejo de yarumal = 724167465
 
-codigo_ent = 727001372
+codigo_ent = 704161686
 annoinicial=2025
 annofinal=2025
 

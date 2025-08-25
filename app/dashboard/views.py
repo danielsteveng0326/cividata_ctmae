@@ -1,4 +1,4 @@
-# app/dashboard/views.py - Versión con debugging para identificar el problema
+# app/dashboard/views.py - Versión completa con filtro de contratación directa aplicado
 from django.shortcuts import render
 from django.views.generic import ListView
 from django.db.models.functions import TruncMonth
@@ -24,8 +24,8 @@ from django.contrib.auth.decorators import login_required
 #concejo de yarumal = 724167465
 
 codigo_ent = 704161686
-annoinicial=2025
-annofinal=2025
+annoinicial = 2025
+annofinal = 2025
 
 @login_required
 def index(request):
@@ -39,13 +39,19 @@ def home(request):
 @login_required
 def dashboard(request):
     try:
-        # Filtro base para contratos del año
+        # ✅ FILTRO GLOBAL: Excluir contratación directa
         contratos_base = Contrato.objects.filter(
             codigo_entidad=codigo_ent, 
             fecha_de_firma__range=(datetime(annoinicial, 1, 1), datetime(annofinal, 12, 31, 23, 59, 59))
+        ).exclude(
+            modalidad_de_contratacion__icontains='contratación directa'
+        ).exclude(
+            modalidad_de_contratacion__icontains='contratacion directa'
+        ).exclude(
+            modalidad_de_contratacion__icontains='directa'
         )
         
-        print(f"🔍 DEBUG: Total contratos encontrados: {contratos_base.count()}")
+        print(f"🔍 DEBUG: Total contratos encontrados (sin contratación directa): {contratos_base.count()}")
         
         # Datos existentes
         suma_valor_del_contrato = contratos_base.aggregate(Sum('valor_del_contrato'))['valor_del_contrato__sum']
@@ -99,7 +105,7 @@ def dashboard(request):
                 modalidades_labels.append(item['modalidad_de_contratacion'])
                 modalidades_data.append(item['total'])
         
-        print(f"🔍 DEBUG: Modalidades encontradas: {len(modalidades_labels)}")
+        print(f"🔍 DEBUG: Modalidades encontradas (filtradas): {len(modalidades_labels)}")
         
         # NUEVO: Datos para gráfico de departamentos
         # Mapeo de números de documento a nombres de departamento
@@ -149,7 +155,7 @@ def dashboard(request):
                 tipos_labels.append(item['tipo_de_contrato'])
                 tipos_data.append(item['total'])
         
-        print(f"🔍 DEBUG: Tipos de contrato encontrados: {len(tipos_labels)}")
+        print(f"🔍 DEBUG: Tipos de contrato encontrados (filtrados): {len(tipos_labels)}")
         
         context = {
             'suma_valor_del_contrato': suma_valor_del_contrato,
@@ -159,7 +165,7 @@ def dashboard(request):
             'data': data,
             'labels2': labels2,
             'data2': data2,
-            # Nuevos datos para gráficos
+            # Nuevos datos para gráficos (sin contratación directa)
             'modalidades_labels': json.dumps(modalidades_labels),
             'modalidades_data': json.dumps(modalidades_data),
             'departamentos_labels': json.dumps(departamentos_labels),
@@ -168,7 +174,7 @@ def dashboard(request):
             'tipos_data': json.dumps(tipos_data),
         }
 
-        print(f"🔍 DEBUG: Context enviado al template:")
+        print(f"🔍 DEBUG: Context enviado al template (filtrado):")
         print(f"   - modalidades_labels: {modalidades_labels}")
         print(f"   - modalidades_data: {modalidades_data}")
         print(f"   - tipos_labels: {tipos_labels}")
@@ -202,13 +208,23 @@ def dashboard(request):
 
 @login_required
 def expired(request):
+    """Vista de contratos vencidos con filtro de contratación directa"""
     # Usar date en lugar de timezone.now() para comparaciones de fecha
     fecha_actual = date.today() - timedelta(days=2)
     
+    # ✅ FILTRO: Excluir contratación directa de vencimientos
     expired_contract = Contrato.objects.filter(
         fecha_de_fin_del_contrato__gte=fecha_actual,
         codigo_entidad=codigo_ent
+    ).exclude(
+        modalidad_de_contratacion__icontains='contratación directa'
+    ).exclude(
+        modalidad_de_contratacion__icontains='contratacion directa'
+    ).exclude(
+        modalidad_de_contratacion__icontains='directa'
     ).order_by('fecha_de_fin_del_contrato')
+    
+    print(f"📅 Contratos próximos a vencer (sin contratación directa): {expired_contract.count()}")
     
     return render(request, 'table_exp.html', {"expired_contract": expired_contract})
 
@@ -227,7 +243,7 @@ def expirededur(request):
 
 @login_required
 def api(request):
-    """Vista corregida para procesar datos de la API"""
+    """Vista corregida para procesar datos de la API con filtro de contratación directa"""
     print("🚀 Iniciando proceso de consulta API...")
     
     try:
@@ -249,8 +265,16 @@ def api(request):
             print(f"   - Actualizados: {actualizados}")
             print(f"   - Errores: {errores}")
             
-            # Obtener la lista actualizada de contratos
-            list = Contrato.objects.filter(codigo_entidad=codigo_ent).order_by('-fecha_de_firma')[:50]
+            # ✅ Obtener la lista actualizada de contratos SIN contratación directa
+            list = Contrato.objects.filter(codigo_entidad=codigo_ent).exclude(
+                modalidad_de_contratacion__icontains='contratación directa'
+            ).exclude(
+                modalidad_de_contratacion__icontains='contratacion directa'
+            ).exclude(
+                modalidad_de_contratacion__icontains='directa'
+            ).order_by('-fecha_de_firma')[:50]
+            
+            print(f"📋 Contratos en lista final (filtrados): {list.count()}")
             
             return render(request, 'api.html', {
                 "list": list,
@@ -286,35 +310,24 @@ def api(request):
 
 @login_required
 def api_interadministrativos(request):
-    """Nueva vista para procesar datos de la API de interadministrativos"""
+    """Vista para procesar contratos interadministrativos"""
     print("🚀 Iniciando proceso de consulta API interadministrativos...")
     
     try:
-        # Obtener datos de la API de interadministrativos
+        # Obtener datos de la API
         response = api_consulta_interadministrativos()
         
         if response['status'] == 'success':
-            print("✅ API de interadministrativos respondió exitosamente")
+            print("✅ API interadministrativos respondió exitosamente")
             
             # Convertir el JSON string a lista de diccionarios
             contratos_data = json.loads(response['data'])
-            print(f"📊 Total de contratos interadministrativos recibidos: {len(contratos_data)}")
+            print(f"📊 Total de contratos interadministrativos: {len(contratos_data)}")
             
             # Procesar los datos de la API
             nuevos, actualizados, errores = process_interadmin_api_data(contratos_data)
             
-            print(f"📈 Resultados del procesamiento interadministrativos:")
-            print(f"   - Nuevos: {nuevos}")
-            print(f"   - Actualizados: {actualizados}")
-            print(f"   - Errores: {errores}")
-            
-            # Obtener la lista actualizada de contratos interadministrativos
-            list_interadmin = ContratoInteradministrativo.objects.filter(
-                documento_proveedor='901831522'
-            ).order_by('-fecha_de_firma_del_contrato')[:50]
-            
             return render(request, 'api_interadmin.html', {
-                "list": list_interadmin,
                 "db_response": (nuevos, actualizados, errores),
                 "success": True,
                 "total_procesados": len(contratos_data),
@@ -345,11 +358,19 @@ def api_interadministrativos(request):
             "success": False
         })
 
-
 @login_required
 def consulta(request):
-    db_list = Contrato.objects.all()
-    return render(request, 'dashboard.html', {"db_list":db_list})
+    """Vista de consulta con filtro de contratación directa"""
+    # ✅ FILTRO: Excluir contratación directa
+    db_list = Contrato.objects.filter(codigo_entidad=codigo_ent).exclude(
+        modalidad_de_contratacion__icontains='contratación directa'
+    ).exclude(
+        modalidad_de_contratacion__icontains='contratacion directa'
+    ).exclude(
+        modalidad_de_contratacion__icontains='directa'
+    )
+    
+    return render(request, 'dashboard.html', {"db_list": db_list})
 
 class ContratoListView(ListView):
     model = Contrato
@@ -366,8 +387,14 @@ class ContratoListView(ListView):
         modalidad_filtro = self.request.GET.get('modalidad', '') or self.request.POST.get('modalidad', '')
         busqueda_filtro = self.request.GET.get('busqueda', '') or self.request.POST.get('busqueda', '')
         
-        # Query base - solo contratos del municipio
-        queryset = Contrato.objects.filter(codigo_entidad=codigo_ent)
+        # ✅ Query base - solo contratos del municipio SIN contratación directa
+        queryset = Contrato.objects.filter(codigo_entidad=codigo_ent).exclude(
+            modalidad_de_contratacion__icontains='contratación directa'
+        ).exclude(
+            modalidad_de_contratacion__icontains='contratacion directa'
+        ).exclude(
+            modalidad_de_contratacion__icontains='directa'
+        )
         
         # Aplicar filtro de año si se especifica
         if ano_filtro:
@@ -416,9 +443,15 @@ class ContratoListView(ListView):
         context['modalidad_filtro'] = self.request.GET.get('modalidad', '') or self.request.POST.get('modalidad', '')
         context['busqueda_filtro'] = self.request.GET.get('busqueda', '') or self.request.POST.get('busqueda', '')
         
-        # Obtener todas las modalidades únicas para llenar el select
+        # ✅ Obtener todas las modalidades únicas para llenar el select (SIN contratación directa)
         modalidades_disponibles = Contrato.objects.filter(
             codigo_entidad=codigo_ent
+        ).exclude(
+            modalidad_de_contratacion__icontains='contratación directa'
+        ).exclude(
+            modalidad_de_contratacion__icontains='contratacion directa'
+        ).exclude(
+            modalidad_de_contratacion__icontains='directa'
         ).values_list('modalidad_de_contratacion', flat=True).distinct().order_by('modalidad_de_contratacion')
         
         context['modalidades_disponibles'] = [m for m in modalidades_disponibles if m]
@@ -432,3 +465,36 @@ class ContratoListView(ListView):
 @login_required
 def emilia(request):
     return render(request, '', {})
+
+# =============================================
+# FUNCIÓN AUXILIAR PARA REUTILIZAR FILTRO
+# =============================================
+def get_filtered_contratos_queryset(additional_filters=None):
+    """
+    Función auxiliar que devuelve un queryset base con el filtro
+    de contratación directa aplicado
+    """
+    queryset = Contrato.objects.filter(
+        codigo_entidad=codigo_ent
+    ).exclude(
+        modalidad_de_contratacion__icontains='contratación directa'
+    ).exclude(
+        modalidad_de_contratacion__icontains='contratacion directa'
+    ).exclude(
+        modalidad_de_contratacion__icontains='directa'
+    )
+    
+    if additional_filters:
+        queryset = queryset.filter(**additional_filters)
+    
+    return queryset
+
+# EJEMPLO DE USO DE LA FUNCIÓN AUXILIAR:
+# En lugar de:
+# contratos_base = Contrato.objects.filter(codigo_entidad=codigo_ent, fecha_de_firma__year=2025)
+# 
+# Usar:
+# contratos_base = get_filtered_contratos_queryset({'fecha_de_firma__year': 2025})
+
+print("🎯 FILTRO GLOBAL APLICADO: Se excluirá toda información de 'contratación directa'")
+print("✅ Archivo views.py completo con filtros implementados")
